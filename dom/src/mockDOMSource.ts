@@ -1,73 +1,72 @@
 import {StreamAdapter, DevToolEnabledSource} from '@cycle/base';
+import {DOMSourceable, GenericStream, EventsFnOptions} from './DOMSourceable';
 import {VNode} from './interfaces';
-import xsSA from '@cycle/xstream-adapter';
-import {DOMSource, EventsFnOptions} from './DOMSource';
+import xsAdapter from '@cycle/xstream-adapter';
 import xs from 'xstream';
-
-export type GenericStream = any;
-export type ElementStream = any;
-export type EventStream = any;
 
 export type MockConfig = {
   [name: string]: GenericStream | MockConfig;
   elements?: GenericStream;
 }
 
-const SCOPE_PREFIX = '___';
+const CYCLE_SOURCE = `MockedDOM`;
+const CSS_NOTATION = `.`;
+const SCOPE_PREFIX = `___`;
 
-export class MockedDOMSource implements DOMSource {
+export class MockedDOMSource implements DOMSourceable {
   private _elements: any;
 
   constructor(private _streamAdapter: StreamAdapter,
               private _mockConfig: MockConfig) {
-    if (_mockConfig.elements) {
-      this._elements = _mockConfig.elements;
-    } else {
-      this._elements = _streamAdapter.adapt(xs.empty(), xsSA.streamSubscribe);
-    }
+    this._elements = _mockConfig.elements ||
+                     _streamAdapter.adapt(xs.empty(), xsAdapter.streamSubscribe);
   }
 
   public elements(): any {
     const out: DevToolEnabledSource = this._elements;
-    out._isCycleSource = 'MockedDOM';
+    out._isCycleSource = CYCLE_SOURCE;
+
     return out;
   }
 
   public events(eventType: string, options: EventsFnOptions): any {
     const mockConfig = this._mockConfig;
     const keys = Object.keys(mockConfig);
-    const keysLen = keys.length;
-    for (let i = 0; i < keysLen; i++) {
-      const key = keys[i];
+    const keysCount = keys.length;
+    for (let idx = 0; idx < keysCount; idx++) {
+      const key = keys[idx];
       if (key === eventType) {
         const out: DevToolEnabledSource = mockConfig[key];
-        out._isCycleSource = 'MockedDOM';
+        out._isCycleSource = CYCLE_SOURCE;
+
         return out;
       }
     }
     const out: DevToolEnabledSource = this._streamAdapter.adapt(
       xs.empty(),
-      xsSA.streamSubscribe
+      xsAdapter.streamSubscribe
     );
-    out._isCycleSource = 'MockedDOM';
+    out._isCycleSource = CYCLE_SOURCE;
+
     return out;
   }
 
-  public select(selector: string): DOMSource {
+  public select(selector: string): DOMSourceable {
     const mockConfig = this._mockConfig;
     const keys = Object.keys(mockConfig);
-    const keysLen = keys.length;
-    for (let i = 0; i < keysLen; i++) {
-      const key = keys[i];
+    const keysCount = keys.length;
+    for (let idx = 0; idx < keysCount; idx++) {
+      const key = keys[idx];
       if (key === selector) {
         return new MockedDOMSource(this._streamAdapter, mockConfig[key]);
       }
     }
+
     return new MockedDOMSource(this._streamAdapter, {});
   }
 
-  public isolateSource(source: MockedDOMSource, scope: string): DOMSource {
-    return source.select('.' + SCOPE_PREFIX + scope);
+  public isolateSource(source: MockedDOMSource, scope: string): DOMSourceable {
+    return source.select(CSS_NOTATION + SCOPE_PREFIX + scope);
   }
 
   public isolateSink(sink: any, scope: string): any {
@@ -75,7 +74,8 @@ export class MockedDOMSource implements DOMSource {
       if (vnode.sel.indexOf(SCOPE_PREFIX + scope) !== -1) {
         return vnode;
       } else {
-        vnode.sel += `.${SCOPE_PREFIX}${scope}`;
+        vnode.sel += `${CSS_NOTATION}${SCOPE_PREFIX}${scope}`;
+
         return vnode;
       }
     });
@@ -84,6 +84,6 @@ export class MockedDOMSource implements DOMSource {
 
 export function mockDOMSource(
     streamAdapter: StreamAdapter,
-    mockConfig: Object): DOMSource {
+    mockConfig: Object): DOMSourceable {
   return new MockedDOMSource(streamAdapter, mockConfig);
 }
